@@ -180,6 +180,7 @@ bot.on("callback_query", async (msg) => {
           [{ text: "325UC", callback_data: `promo||325||${quantity}` }],
           [{ text: "385UC", callback_data: `promo||385||${quantity}` }],
           [{ text: "660UC", callback_data: `promo||660||${quantity}` }],
+          [{ text: "985UC", callback_data: `promo||985||${quantity}` }],
           [{ text: "1800UC", callback_data: `promo||1800||${quantity}` }],
           [{ text: "3850UC", callback_data: `promo||3850||${quantity}` }],
           [{ text: "8100UC", callback_data: `promo||8100||${quantity}` }],
@@ -213,6 +214,52 @@ bot.on("callback_query", async (msg) => {
           console.log(code.code);
           text += `<code>${code.code}</code> || 60 \n`;
           const savedCode = await Codes.findOne({ code: code.code, codeType: "60", status: 0 });
+          savedCode.status = 1;
+          savedCode.usedBy = debt.userId;
+          savedCode.usedDate = new Date();
+          await savedCode.save();
+        }
+        const codes325 = await Codes.find({ codeType: "325", status: 0 }).sort({ id: -1 }).limit(quantity);
+        for (const code of codes325) {
+          console.log(code.code);
+          text += `<code>${code.code}</code> || 325\n`;
+          const savedCode = await Codes.findOne({ code: code.code, codeType: "325", status: 0 });
+          savedCode.status = 1;
+          savedCode.usedBy = debt.userId;
+          savedCode.usedDate = new Date();
+          await savedCode.save();
+        }
+        bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
+🎁 Quantity: ${quantity}</b>`, {
+  parse_mode: "HTML",
+  reply_markup: {
+    inline_keyboard: [
+        [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+        ]
+      }
+    });
+      }
+    }else if(codeType == "985"){
+      const check60 = await Codes.find({ codeType: "660", status: 0 });
+      const check325 = await Codes.find({ codeType: "325", status: 0 });
+      if(check60.length < parseInt(quantity, 10) || check325.length < parseInt(quantity, 10)){
+        bot.sendMessage(msg.message.chat.id, "Yetarlicha Mavjud emas");
+      }else{
+        const debt = await Debts.findOne({ tgId: msg.message.chat.id });
+
+        if (debt) {
+          debt.codes[660] = (debt.codes[660] || 0) + parseInt(quantity, 10);
+          debt.codes[325] = (debt.codes[325] || 0) + parseInt(quantity, 10);
+          await debt.save();
+        } else {
+          console.log("Debt not found for tgId: " + msg.message.chat.id);
+        }
+        const codes = await Codes.find({ codeType: "660", status: 0 }).sort({ id: -1 }).limit(quantity);
+        let text = "";
+        for (const code of codes) {
+          console.log(code.code);
+          text += `<code>${code.code}</code> || 660 \n`;
+          const savedCode = await Codes.findOne({ code: code.code, codeType: "660", status: 0 });
           savedCode.status = 1;
           savedCode.usedBy = debt.userId;
           savedCode.usedDate = new Date();
