@@ -67,7 +67,26 @@ Quantities: ${lines.length}`);
       }
       await userData.deleteOne({ tgId: msg.chat.id });
     }
+    if (userData.value == "delete_user") {
+      const user = await Users.findOne({ tgId: msg.text });
+      console.log("User found:", user);
     
+      if (!user) {
+        bot.sendMessage(msg.chat.id, "User not found!");
+      } else {
+        user.isAdmin = false;
+    
+        try {
+          await user.save();
+          await Debts.deleteOne({ tgId: msg.text });
+          bot.sendMessage(msg.chat.id, "User deleted!");
+        } catch (error) {
+          console.error("Error saving user:", error);
+          bot.sendMessage(msg.chat.id, "Error setting user as admin!");
+        }
+      }
+      await userData.deleteOne({ tgId: msg.chat.id });
+    }
   }
   const user = await Users.findOne({ tgId: msg.chat.id });
   if (msg.text == "/admin" && (msg.chat.id == process.env.ADMIN_ID || user.isAdmin)) {
@@ -90,8 +109,7 @@ Quantities: ${lines.length}`);
         inline_keyboard: [
           [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
           [{ text: "✳️ ADD CODE", callback_data: "add_codes" }],
-          [{ text: "⏫ ADD ADMIN", callback_data: "add_user" }],
-          [{ text: "🧑‍✈️ ADMINS", callback_data: "admins" }],
+          [{ text: "🧑‍✈️ ADMINS", callback_data: "admin_page" }],
         ],
       };
     }
@@ -160,6 +178,7 @@ bot.on("callback_query", async (msg) => {
         inline_keyboard: [
           [{ text: "60UC", callback_data: `promo||60||${quantity}` }],
           [{ text: "325UC", callback_data: `promo||325||${quantity}` }],
+          [{ text: "385UC", callback_data: `promo||385||${quantity}` }],
           [{ text: "660UC", callback_data: `promo||660||${quantity}` }],
           [{ text: "1800UC", callback_data: `promo||1800||${quantity}` }],
           [{ text: "3850UC", callback_data: `promo||3850||${quantity}` }],
@@ -173,6 +192,53 @@ bot.on("callback_query", async (msg) => {
     const codeType = msg.data.split("||")[1];
     
     await bot.deleteMessage(msg.message.chat.id, msg.message.message_id);
+    if(codeType == "385"){
+      const check60 = await Codes.find({ codeType: "60", status: 0 });
+      const check325 = await Codes.find({ codeType: "325", status: 0 });
+      if(check60.length < parseInt(quantity, 10) || check325.length < parseInt(quantity, 10)){
+        bot.sendMessage(msg.message.chat.id, "Yetarlicha Mavjud emas");
+      }else{
+        const debt = await Debts.findOne({ tgId: msg.message.chat.id });
+
+        if (debt) {
+          debt.codes[60] = (debt.codes[60] || 0) + parseInt(quantity, 10);
+          debt.codes[325] = (debt.codes[325] || 0) + parseInt(quantity, 10);
+          await debt.save();
+        } else {
+          console.log("Debt not found for tgId: " + msg.message.chat.id);
+        }
+        const codes = await Codes.find({ codeType: "60", status: 0 }).sort({ id: -1 }).limit(quantity);
+        let text = "";
+        for (const code of codes) {
+          console.log(code.code);
+          text += `<code>${code.code}</code> || 60 \n`;
+          const savedCode = await Codes.findOne({ code: code.code, codeType: "60", status: 0 });
+          savedCode.status = 1;
+          savedCode.usedBy = debt.userId;
+          savedCode.usedDate = new Date();
+          await savedCode.save();
+        }
+        const codes325 = await Codes.find({ codeType: "325", status: 0 }).sort({ id: -1 }).limit(quantity);
+        for (const code of codes325) {
+          console.log(code.code);
+          text += `<code>${code.code}</code> || 325\n`;
+          const savedCode = await Codes.findOne({ code: code.code, codeType: "325", status: 0 });
+          savedCode.status = 1;
+          savedCode.usedBy = debt.userId;
+          savedCode.usedDate = new Date();
+          await savedCode.save();
+        }
+        bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
+🎁 Quantity: ${quantity}</b>`, {
+  parse_mode: "HTML",
+  reply_markup: {
+    inline_keyboard: [
+        [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+        ]
+      }
+    });
+      }
+    }else{
     const checker = await Codes.find({ codeType, status: 0 });
     if(checker.length < parseInt(quantity, 10)) {
       bot.sendMessage(msg.message.chat.id, "Yetarlicha Mavjud emas");
@@ -180,10 +246,6 @@ bot.on("callback_query", async (msg) => {
       const debt = await Debts.findOne({ tgId: msg.message.chat.id });
 
     if (debt) {
-      if (!debt.codes) {
-        debt.codes = {};
-      }
-
       debt.codes[codeType] = (debt.codes[codeType] || 0) + parseInt(quantity, 10);
       await debt.save();
     } else {
@@ -206,12 +268,14 @@ bot.on("callback_query", async (msg) => {
   reply_markup: {
     inline_keyboard: [
         [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
-    ]
-  }
-});
+        ]
+      }
+    });
 
     }
   }
+}
+
 
   if(msg.data == "add_codes") {
     bot.editMessageText(`<b>Qo'shmoqchi bo'gan Redeem Turini Tanglang</b>`, {
@@ -245,6 +309,14 @@ bot.on("callback_query", async (msg) => {
     const newDataValue = await DataValue({
       tgId: msg.message.chat.id,
       value: "add_user"
+    });
+    await newDataValue.save();
+  }
+  if(msg.data == "delete_user") {
+    bot.sendMessage(msg.message.chat.id, "Admindan Olmoqchi Bo'lgan Odamni ID sini yuboring");
+    const newDataValue = await DataValue({
+      tgId: msg.message.chat.id,
+      value: "delete_user"
     });
     await newDataValue.save();
   }
@@ -305,5 +377,15 @@ bot.on("callback_query", async (msg) => {
       bot.sendMessage(debt.tgId, "Bot restarted successfully for your account");
       bot.sendMessage(msg.message.chat.id, `Codes reset to 0 for ${debt.userId.name}`);
     }
+  }
+  if(msg.data == "admin_page") {
+    bot.sendMessage(msg.message.chat.id, "Admin Page",{
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🔆 INFO ADMIN", callback_data: `admins` }],
+          [{ text: "⏬ DELETE ADMIN", callback_data: `delete_user` }, { text: "⏫ ADD ADMIN", callback_data: "add_user" }],
+        ],
+      }
+    });
   }
 });
