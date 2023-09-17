@@ -23,7 +23,10 @@ const CodesSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     default: null,
     ref: "users"
-  }
+  },
+  price: {
+    type: Number
+  },
 });
 const Codes = mongoose.model("Codes", CodesSchema);
 

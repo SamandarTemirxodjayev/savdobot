@@ -1,8 +1,30 @@
-const TelegramBot = require("node-telegram-bot-api");
+"use strict";
+let TelegramBot = require("node-telegram-bot-api");
 const Codes = require("./models/Codes");
 const DataValue = require("./models/DataValue");
 const Users = require("./models/Users");
 const Debts = require("./models/Debts");
+const fs = require("fs");
+const pricePath = "./price.json";
+
+function readJsonFile(filePath) {
+  try {
+    const data = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(data);
+  } catch (err) {
+    console.error("Error reading JSON file:", err);
+    return {};
+  }
+}
+
+function writeJsonFile(filePath, data) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    console.log("Data written to JSON file successfully.");
+  } catch (err) {
+    console.error("Error writing JSON file:", err);
+  }
+}
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
@@ -10,7 +32,7 @@ const stripos = (haystack, needle) => {
   const haystackLower = haystack.toLowerCase();
   const needleLower = needle.toLowerCase();
   return haystackLower.indexOf(needleLower);
-}
+};
 
 bot.onText(/\/start/, async (msg) => {
   const user = await Users.findOne({ tgId: msg.chat.id });
@@ -19,7 +41,7 @@ bot.onText(/\/start/, async (msg) => {
     await newUser.save();
   }
   bot.sendMessage(msg.chat.id, "Hi! I'm a bot that helps you to add codes to the database.");
-})
+});
 
 bot.on("message", async (msg) => {
 
@@ -27,9 +49,10 @@ bot.on("message", async (msg) => {
   if (userData && userData.value){
     if(stripos(userData.value, "addCodes||") !== -1){
       const codeType = userData.value.split("||")[1];
+      const price = await readJsonFile(pricePath);
       const lines = msg.text.split("\n");
       for (const line of lines) {
-        const code = new Codes({ codeType, code: line });
+        const code = new Codes({ codeType, code: line, price: price[codeType] });
         try {
           await code.save();
           console.log(`Saved code: ${line}`);
@@ -127,7 +150,9 @@ Quantities: ${lines.length}`);
 💣 660UC - ${debt.codes[660]} 💣
 💣 1800UC - ${debt.codes[1800]} 💣
 💣 3850UC - ${debt.codes[3850]} 💣
-💣 8100UC - ${debt.codes[8100]} 💣`, {
+💣 8100UC - ${debt.codes[8100]} 💣
+
+${user.balance} USDT`, {
       parse_mode: "HTML",
       reply_markup,
     });
@@ -170,7 +195,7 @@ bot.on("callback_query", async (msg) => {
   }
   if(stripos(msg.data, "redeemGive||")!= -1) {
     const quantity = msg.data.split("||")[1];
-    bot.editMessageText(`<b>Redeemni tanglang</b>`, {
+    bot.editMessageText("<b>Redeemni tanglang</b>", {
       chat_id: msg.message.chat.id,
       message_id: msg.message.message_id,
       parse_mode: "HTML",
@@ -214,6 +239,9 @@ bot.on("callback_query", async (msg) => {
           console.log(code.code);
           text += `<code>${code.code}</code> || 60 \n`;
           const savedCode = await Codes.findOne({ code: code.code, codeType: "60", status: 0 });
+          const user = await Users.findOne({ tgId: msg.message.chat.id });
+          user.balance += code.price;
+          await user.save();
           savedCode.status = 1;
           savedCode.usedBy = debt.userId;
           savedCode.usedDate = new Date();
@@ -224,6 +252,9 @@ bot.on("callback_query", async (msg) => {
           console.log(code.code);
           text += `<code>${code.code}</code> || 325\n`;
           const savedCode = await Codes.findOne({ code: code.code, codeType: "325", status: 0 });
+          const user = await Users.findOne({ tgId: msg.message.chat.id });
+          user.balance += code.price;
+          await user.save();
           savedCode.status = 1;
           savedCode.usedBy = debt.userId;
           savedCode.usedDate = new Date();
@@ -231,13 +262,13 @@ bot.on("callback_query", async (msg) => {
         }
         bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
 🎁 Quantity: ${quantity}</b>`, {
-  parse_mode: "HTML",
-  reply_markup: {
-    inline_keyboard: [
-        [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
-        ]
-      }
-    });
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+            ]
+          }
+        });
       }
     }else if(codeType == "985"){
       const check60 = await Codes.find({ codeType: "660", status: 0 });
@@ -260,6 +291,9 @@ bot.on("callback_query", async (msg) => {
           console.log(code.code);
           text += `<code>${code.code}</code> || 660 \n`;
           const savedCode = await Codes.findOne({ code: code.code, codeType: "660", status: 0 });
+          const user = await Users.findOne({ tgId: msg.message.chat.id });
+          user.balance += code.price;
+          await user.save();
           savedCode.status = 1;
           savedCode.usedBy = debt.userId;
           savedCode.usedDate = new Date();
@@ -270,6 +304,9 @@ bot.on("callback_query", async (msg) => {
           console.log(code.code);
           text += `<code>${code.code}</code> || 325\n`;
           const savedCode = await Codes.findOne({ code: code.code, codeType: "325", status: 0 });
+          const user = await Users.findOne({ tgId: msg.message.chat.id });
+          user.balance += code.price;
+          await user.save();
           savedCode.status = 1;
           savedCode.usedBy = debt.userId;
           savedCode.usedDate = new Date();
@@ -277,66 +314,67 @@ bot.on("callback_query", async (msg) => {
         }
         bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
 🎁 Quantity: ${quantity}</b>`, {
-  parse_mode: "HTML",
-  reply_markup: {
-    inline_keyboard: [
-        [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
-        ]
-      }
-    });
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+            ]
+          }
+        });
       }
     }else{
-    const checker = await Codes.find({ codeType, status: 0 });
-    if(checker.length < parseInt(quantity, 10)) {
-      bot.sendMessage(msg.message.chat.id, "Yetarlicha Mavjud emas");
-    }else{
-      const debt = await Debts.findOne({ tgId: msg.message.chat.id });
+      const checker = await Codes.find({ codeType, status: 0 });
+      if(checker.length < parseInt(quantity, 10)) {
+        bot.sendMessage(msg.message.chat.id, "Yetarlicha Mavjud emas");
+      }else{
+        const debt = await Debts.findOne({ tgId: msg.message.chat.id });
 
-    if (debt) {
-      debt.codes[codeType] = (debt.codes[codeType] || 0) + parseInt(quantity, 10);
-      await debt.save();
-    } else {
-      console.log("Debt not found for tgId: " + msg.message.chat.id);
-    }
-      const codes = await Codes.find({ codeType: codeType, status: 0 }).sort({ id: -1 }).limit(quantity);
-      let text = "";
-      for (const code of codes) {
-        console.log(code.code);
-        text += `<code>${code.code}</code>\n`;
-        const savedCode = await Codes.findOne({ code: code.code, codeType, status: 0 });
-        savedCode.status = 1;
-        savedCode.usedBy = debt.userId;
-        savedCode.usedDate = new Date();
-        await savedCode.save();
-      }
-      bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
+        if (debt) {
+          debt.codes[codeType] = (debt.codes[codeType] || 0) + parseInt(quantity, 10);
+          await debt.save();
+        } else {
+          console.log("Debt not found for tgId: " + msg.message.chat.id);
+        }
+        const codes = await Codes.find({ codeType: codeType, status: 0 }).sort({ id: -1 }).limit(quantity);
+        let text = "";
+        for (const code of codes) {
+          console.log(code.code);
+          text += `<code>${code.code}</code>\n`;
+          const savedCode = await Codes.findOne({ code: code.code, codeType, status: 0 });
+          const user = await Users.findOne({ tgId: msg.message.chat.id });
+          user.balance += code.price;
+          await user.save();
+          savedCode.status = 1;
+          savedCode.usedBy = debt.userId;
+          savedCode.usedDate = new Date();
+          await savedCode.save();
+        }
+        bot.sendMessage(msg.message.chat.id, `${text}<b>💚 Code Type: ${codeType}
 🎁 Quantity: ${quantity}</b>`, {
-  parse_mode: "HTML",
-  reply_markup: {
-    inline_keyboard: [
-        [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
-        ]
-      }
-    });
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+            ]
+          }
+        });
 
+      }
     }
   }
-}
-
-
   if(msg.data == "add_codes") {
-    bot.editMessageText(`<b>Qo'shmoqchi bo'gan Redeem Turini Tanglang</b>`, {
+    bot.editMessageText("<b>Qo'shmoqchi bo'gan Redeem Turini Tanglang</b>", {
       chat_id: msg.message.chat.id,
       message_id: msg.message.message_id,
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "60UC", callback_data: `addCodes||60` }],
-          [{ text: "325UC", callback_data: `addCodes||325` }],
-          [{ text: "660UC", callback_data: `addCodes||660` }],
-          [{ text: "1800UC", callback_data: `addCodes||1800` }],
-          [{ text: "3850UC", callback_data: `addCodes||3850` }],
-          [{ text: "8100UC", callback_data: `addCodes||8100` }],
+          [{ text: "60UC", callback_data: "addCodes||60" }],
+          [{ text: "325UC", callback_data: "addCodes||325" }],
+          [{ text: "660UC", callback_data: "addCodes||660" }],
+          [{ text: "1800UC", callback_data: "addCodes||1800" }],
+          [{ text: "3850UC", callback_data: "addCodes||3850" }],
+          [{ text: "8100UC", callback_data: "addCodes||8100" }],
         ],
       }
     });
@@ -369,7 +407,7 @@ bot.on("callback_query", async (msg) => {
   }
   if (msg.data == "admins") {
     const debts = await Debts.find().populate("userId");
-  
+    console.log(debts);
     const keyboardButtons = debts.map((debt) => ({
       text: `${debt.userId.name}`,
       callback_data: `admin||${debt.userId._id}`,
@@ -379,7 +417,7 @@ bot.on("callback_query", async (msg) => {
       inline_keyboard: keyboardButtons.map((button) => [button]),
     };
   
-    bot.editMessageText(`<b>Adminlar</b>`, {
+    bot.editMessageText("<b>Adminlar</b>", {
       chat_id: msg.message.chat.id,
       message_id: msg.message.message_id,
       parse_mode: "HTML",
@@ -393,7 +431,7 @@ bot.on("callback_query", async (msg) => {
     let message = `${debt.userId.name}\n`;
   
     for (const key in debt.codes) {
-      if (debt.codes.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(debt.codes, key)) {
         message += `${key}: ${debt.codes[key]}\n`;
       }
     }
@@ -410,6 +448,7 @@ bot.on("callback_query", async (msg) => {
   if (stripos(msg.data, "restartAd||") !== -1) {
     const userId = msg.data.split("||")[1];
     const debt = await Debts.findOne({ userId }).populate("userId");
+    const user = await Users.findOne({ tgId: msg.message.chat.id });
 
     if (debt) {
       debt.codes = {
@@ -421,6 +460,8 @@ bot.on("callback_query", async (msg) => {
         8100: 0,
       };
       await debt.save();
+      user.balance = 0;
+      await user.save();
       bot.sendMessage(debt.tgId, "Bot restarted successfully for your account");
       bot.sendMessage(msg.message.chat.id, `Codes reset to 0 for ${debt.userId.name}`);
     }
@@ -429,8 +470,8 @@ bot.on("callback_query", async (msg) => {
     bot.sendMessage(msg.message.chat.id, "Admin Page",{
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🔆 INFO ADMIN", callback_data: `admins` }],
-          [{ text: "⏬ DELETE ADMIN", callback_data: `delete_user` }, { text: "⏫ ADD ADMIN", callback_data: "add_user" }],
+          [{ text: "🔆 INFO ADMIN", callback_data: "admins" }],
+          [{ text: "⏬ DELETE ADMIN", callback_data: "delete_user" }, { text: "⏫ ADD ADMIN", callback_data: "add_user" }],
         ],
       }
     });
