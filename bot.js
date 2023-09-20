@@ -16,16 +16,6 @@ function readJsonFile(filePath) {
     return {};
   }
 }
-
-function writeJsonFile(filePath, data) {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
-    console.log("Data written to JSON file successfully.");
-  } catch (err) {
-    console.error("Error writing JSON file:", err);
-  }
-}
-
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const stripos = (haystack, needle) => {
@@ -124,6 +114,7 @@ Quantities: ${lines.length}`);
     let reply_markup = {
       inline_keyboard: [
         [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+        [{ text: "🎰 PRICE", callback_data: "get_price" }],
       ],
     };
   
@@ -133,6 +124,7 @@ Quantities: ${lines.length}`);
           [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
           [{ text: "✳️ ADD CODE", callback_data: "add_codes" }],
           [{ text: "🧑‍✈️ ADMINS", callback_data: "admin_page" }],
+          [{ text: "🎰 PRICE", callback_data: "get_price" }],
         ],
       };
     }
@@ -427,6 +419,7 @@ bot.on("callback_query", async (msg) => {
   if (stripos(msg.data, "admin||") !== -1) {
     const userId = msg.data.split("||")[1];
     const debt = await Debts.findOne({ userId }).populate("userId");
+    const user = await Users.findOne({ _id: userId });
   
     let message = `${debt.userId.name}\n`;
   
@@ -435,7 +428,7 @@ bot.on("callback_query", async (msg) => {
         message += `${key}: ${debt.codes[key]}\n`;
       }
     }
-  
+    message += `---------\n${user.balance} USDT`;
     bot.sendMessage(msg.message.chat.id, message, {
       reply_markup: {
         inline_keyboard: [
@@ -448,7 +441,7 @@ bot.on("callback_query", async (msg) => {
   if (stripos(msg.data, "restartAd||") !== -1) {
     const userId = msg.data.split("||")[1];
     const debt = await Debts.findOne({ userId }).populate("userId");
-    const user = await Users.findOne({ tgId: msg.message.chat.id });
+    const user = await Users.findOne({ _id: userId });
 
     if (debt) {
       debt.codes = {
@@ -474,6 +467,18 @@ bot.on("callback_query", async (msg) => {
           [{ text: "⏬ DELETE ADMIN", callback_data: "delete_user" }, { text: "⏫ ADD ADMIN", callback_data: "add_user" }],
         ],
       }
+    });
+  }
+  if(msg.data == "get_price"){
+    const price = readJsonFile("./price.json");
+    bot.sendMessage(msg.message.chat.id, `<b>Price Codes</b>
+60UC = ${price[60]} USDT
+325UC = ${price[325]} USDT
+660UC = ${price[660]} USDT
+1800UC = ${price[1800]} USDT
+3850UC = ${price[3850]} USDT
+8100UC = ${price[8100]} USDT`, {
+      parse_mode: "HTML"
     });
   }
 });
