@@ -31,6 +31,15 @@ app.put("/api/prices", (req, res) => {
   fs.writeFileSync("./price.json", JSON.stringify(price));
   res.json({ price });
 });
+app.get("/api/pricesId", (req, res) => {
+  const price = readJsonFile("./priceId.json");
+  res.json({ price });
+});
+app.put("/api/pricesId", (req, res) => {
+  const price = req.body.price;
+  fs.writeFileSync("./priceId.json", JSON.stringify(price));
+  res.json({ price });
+});
 
 mongoose.connect("mongodb://127.0.0.1:27017/savdobot?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+1.9.1",
   {

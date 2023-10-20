@@ -82,8 +82,6 @@ Quantities: ${lines.length}`);
     }
     if (userData.value == "delete_user") {
       const user = await Users.findOne({ tgId: msg.text });
-      console.log("User found:", user);
-    
       if (!user) {
         bot.sendMessage(msg.chat.id, "User not found!");
       } else {
@@ -100,9 +98,30 @@ Quantities: ${lines.length}`);
       }
       await userData.deleteOne({ tgId: msg.chat.id });
     }
+    if(stripos(userData.value, "byid||")!== -1){
+      const codeType = userData.value.split("||")[1];
+      const price = await readJsonFile("./priceId.json");
+      const user = await Users.findOne({ tgId: msg.chat.id });
+      user.balance += price[codeType];
+      await user.save();
+      await userData.deleteOne({tgId: msg.chat.id});
+      bot.sendMessage(msg.chat.id, `<b>Ma'lumot: 
+  ID: <code>${msg.text}</code>
+  UC: <code>${codeType}</code>
+  PRICE: <code>${price[codeType]}</code></b>`, {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+            [{ text: "🔰 BY ID", callback_data: "by_id_code" }],
+          ],
+        }
+      });
+
+    }
   }
   const user = await Users.findOne({ tgId: msg.chat.id });
-  if (msg.text == "/admin" && (msg.chat.id == process.env.ADMIN_ID || user.isAdmin)) {
+  if (msg.text == "/admin" && (msg.chat.id == process.env.ADMIN_ID || (user && user.isAdmin))) {
     const codes60 = await Codes.find({ codeType: "60", status: "0" });
     const codes325 = await Codes.find({ codeType: "325", status: "0" });
     const codes660 = await Codes.find({ codeType: "660", status: "0" });
@@ -114,6 +133,7 @@ Quantities: ${lines.length}`);
     let reply_markup = {
       inline_keyboard: [
         [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+        [{ text: "🔰 BY ID", callback_data: "by_id_code" }],
         [{ text: "🎰 PRICE", callback_data: "get_price" }],
       ],
     };
@@ -122,6 +142,7 @@ Quantities: ${lines.length}`);
       reply_markup = {
         inline_keyboard: [
           [{ text: "🔰 GET CODE", callback_data: "get_codes" }],
+          [{ text: "🔰 BY ID", callback_data: "by_id_code" }],
           [{ text: "✳️ ADD CODE", callback_data: "add_codes" }],
           [{ text: "🧑‍✈️ ADMINS", callback_data: "admin_page" }],
           [{ text: "🎰 PRICE", callback_data: "get_price" }],
@@ -471,13 +492,49 @@ bot.on("callback_query", async (msg) => {
   }
   if(msg.data == "get_price"){
     const price = readJsonFile("./price.json");
+    const priceId = readJsonFile("./priceId.json");
     bot.sendMessage(msg.message.chat.id, `<b>Price Codes</b>
+<b>Code</b>
 60UC = ${price[60]} USDT
 325UC = ${price[325]} USDT
 660UC = ${price[660]} USDT
 1800UC = ${price[1800]} USDT
 3850UC = ${price[3850]} USDT
-8100UC = ${price[8100]} USDT`, {
+8100UC = ${price[8100]} USDT
+------------------
+<b>By ID</b>
+63UC = ${priceId[63]} USDT
+355UC = ${priceId[355]} USDT
+720UC = ${priceId[720]} USDT
+1950UC = ${priceId[1950]} USDT
+4000UC = ${priceId[4000]} USDT
+8400UC = ${priceId[8400]} USDT`, {
+      parse_mode: "HTML"
+    });
+  }
+  if(msg.data == "by_id_code"){
+    bot.editMessageText("<b>Tushurmoqchi bo'lgan UC miqdorini tanlang</b>", {
+      chat_id: msg.message.chat.id,
+      message_id: msg.message.message_id,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "63UC", callback_data: "byid||63" },{ text: "355UC", callback_data: "byid||355" }],
+          [{ text: "720UC", callback_data: "byid||720" },{ text: "1950UC", callback_data: "byid||1950" }],
+          [{ text: "4000UC", callback_data: "byid||4000" },{ text: "8400UC", callback_data: "byid||8400" }],
+        ],
+      }
+    });
+  }
+  if(stripos(msg.data, "byid||")!= -1) {
+    const codeType = msg.data.split("||")[1];
+    await bot.deleteMessage(msg.message.chat.id, msg.message.message_id);
+    const newDataValue = await DataValue({
+      tgId: msg.message.chat.id,
+      value: `byid||${codeType}`
+    });
+    await newDataValue.save();
+    bot.sendMessage(msg.message.chat.id, "IDni yuboring\nExample: <code>524534535</code>", {
       parse_mode: "HTML"
     });
   }
