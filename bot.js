@@ -5,6 +5,7 @@ const DataValue = require("./models/DataValue");
 const Users = require("./models/Users");
 const Debts = require("./models/Debts");
 const fs = require("fs");
+const ByIds = require("./models/ByIds");
 const pricePath = "./price.json";
 
 function readJsonFile(filePath) {
@@ -117,6 +118,18 @@ Quantities: ${lines.length}`);
           ],
         }
       });
+      bot.sendMessage(process.env.GROUP_ID, `<b>Ma'lumot: 
+  ID: <code>${msg.text}</code>
+  UC: <code>${codeType}</code>
+  PRICE: <code>${price[codeType]}</code></b>`, {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ TASDIQLASH", callback_data: `tasdiqlash||${msg.chat.id}||${msg.text}||${codeType}` }],
+            [{ text: "❌ BEKOR QILISH", callback_data: `bekorqilish||${msg.chat.id}||${msg.text}||${codeType}` }],
+          ],
+        }
+      });
 
     }
   }
@@ -165,7 +178,7 @@ Quantities: ${lines.length}`);
 💣 3850UC - ${debt.codes[3850]} 💣
 💣 8100UC - ${debt.codes[8100]} 💣
 
-${user.balance} USDT`, {
+${user.balance.toFixed(2)} USDT`, {
       parse_mode: "HTML",
       reply_markup,
     });
@@ -535,6 +548,32 @@ bot.on("callback_query", async (msg) => {
     });
     await newDataValue.save();
     bot.sendMessage(msg.message.chat.id, "IDni yuboring\nExample: <code>524534535</code>", {
+      parse_mode: "HTML"
+    });
+  }
+  if(stripos(msg.data, "tasdiqlash||")!= -1) {
+    const priceId = readJsonFile("./priceId.json");
+    let types = msg.data.split("||");
+    await bot.deleteMessage(msg.message.chat.id, msg.message.message_id);
+    const newByIds = new ByIds({
+      codeType:types[3],
+      usedId: types[2],
+      price: priceId[types[3]],
+      user: types[1]
+    });
+    await newByIds.save();
+    bot.sendMessage(types[1], `✅ UC TUSHDI\nID: <b>${types[2]}</b>\nUC: <b>${types[3]}</b>`, {
+      parse_mode: "HTML"
+    });
+  }
+  if(stripos(msg.data, "bekorqilish||")!= -1) {
+    const priceId = readJsonFile("./priceId.json");
+    let types = msg.data.split("||");
+    const user = await Users.findOne({ tgId: types[1] });
+    user.balance -= Number(priceId[types[3]]); 
+    await user.save();
+    await bot.deleteMessage(msg.message.chat.id, msg.message.message_id);
+    bot.sendMessage(types[1], `❌ UC TUSHMADI\nID: <b>${types[2]}</b>\nUC: <b>${types[3]}</b>\nPUL QAYTARILDI`, {
       parse_mode: "HTML"
     });
   }
